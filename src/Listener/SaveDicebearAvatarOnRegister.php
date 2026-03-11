@@ -32,9 +32,11 @@ class SaveDicebearAvatarOnRegister
             return;
         }
 
-        // fetchAndSave writes the file and does a direct DB update —
-        // no Flarum event system involved, so it can't conflict with
-        // the registration flow that just completed.
-        $this->fetcher->fetchAndSave($user);
+        try {
+            $this->fetcher->fetchAndSave($user);
+        } catch (\Throwable $e) {
+            // Don't block registration if Dicebear is unreachable.
+            // The lazy fallback in AddDicebearAvatar will handle it later.
+        }
     }
 }
