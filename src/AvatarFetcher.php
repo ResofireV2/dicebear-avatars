@@ -38,30 +38,44 @@ class AvatarFetcher
 
     public function fetchAndSave(User $user): void
     {
-        $url = $this->buildUrl($user);
+        $log = $this->paths->storage . '/logs/dicebear-debug.log';
+        $write = function(string $msg) use ($log) {
+            file_put_contents($log, date('[Y-m-d H:i:s] ') . $msg . PHP_EOL, FILE_APPEND);
+        };
 
-        // Fetch the PNG from Dicebear — it's already being displayed
-        // from this URL, so we know it works.
+        $write("fetchAndSave called for user: {$user->username} (id: {$user->id})");
+
+        $url = $this->buildUrl($user);
+        $write("Fetching URL: $url");
+
         $imageData = file_get_contents($url);
 
         if ($imageData === false || strlen($imageData) < 100) {
+            $write("FAILED: could not fetch from $url");
             throw new \RuntimeException("Could not fetch avatar from: $url");
         }
 
-        // Write it directly into assets/avatars.
+        $write("Fetched " . strlen($imageData) . " bytes");
+
         $filename = Str::random(24) . '.svg';
         $avatarDir = $this->paths->public . '/assets/avatars';
 
+        $write("Avatar dir: $avatarDir");
+        $write("Dir exists: " . (is_dir($avatarDir) ? 'yes' : 'no'));
+        $write("Dir writable: " . (is_writable($avatarDir) ? 'yes' : 'no'));
+
         if (!is_dir($avatarDir)) {
             mkdir($avatarDir, 0755, true);
+            $write("Created dir: $avatarDir");
         }
 
-        file_put_contents($avatarDir . '/' . $filename, $imageData);
+        $result = file_put_contents($avatarDir . '/' . $filename, $imageData);
+        $write("file_put_contents result: " . var_export($result, true));
 
-        // Update the database directly — no events, no Eloquent lifecycle.
         User::where('id', $user->id)->update(['avatar_url' => $filename]);
+        $write("DB updated with avatar_url: $filename");
 
-        // Keep the in-memory model in sync.
         $user->avatar_url = $filename;
+        $write("Done.");
     }
 }

@@ -27,7 +27,6 @@ class SaveDicebearAvatarOnRegister
     {
         $user = $event->user;
 
-        // Skip if user already has an avatar (e.g. from SSO).
         if (!empty($user->getRawOriginal('avatar_url'))) {
             return;
         }
@@ -35,7 +34,7 @@ class SaveDicebearAvatarOnRegister
         try {
             $this->fetcher->fetchAndSave($user);
         } catch (\Throwable $e) {
-            // Don't block registration. Lazy fallback will handle it on first load.
+            error_log('[resofire-dicebear] Registration listener failed for user ' . $user->username . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         }
     }
 }
