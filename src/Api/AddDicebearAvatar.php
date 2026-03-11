@@ -14,17 +14,23 @@ namespace Resofire\Dicebear\Api;
 use Flarum\Api\Serializer\BasicUserSerializer;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
+use Illuminate\Contracts\Filesystem\Factory;
 use Resofire\Dicebear\AvatarFetcher;
 
 class AddDicebearAvatar
 {
     protected SettingsRepositoryInterface $settings;
     protected AvatarFetcher $fetcher;
+    protected $uploadDir;
 
-    public function __construct(SettingsRepositoryInterface $settings, AvatarFetcher $fetcher)
-    {
+    public function __construct(
+        SettingsRepositoryInterface $settings,
+        AvatarFetcher $fetcher,
+        Factory $filesystemFactory
+    ) {
         $this->settings = $settings;
         $this->fetcher = $fetcher;
+        $this->uploadDir = $filesystemFactory->disk('flarum-avatars');
     }
 
     public function __invoke(BasicUserSerializer $serializer, User $user, array $attributes): array
@@ -38,14 +44,11 @@ class AddDicebearAvatar
         try {
             $this->fetcher->fetchAndSave($user);
 
-            // After saving, avatar_url holds the filename (e.g. "abc123.png").
-            // The getAvatarUrlAttribute accessor converts it to a full URL.
-            $attributes['avatarUrl'] = $user->avatar_url
-                ? $user->getAvatarUrlAttribute($user->getRawOriginal('avatar_url'))
-                : null;
+            // Build the full public URL from the stored filename.
+            $attributes['avatarUrl'] = $this->uploadDir->url($user->avatar_url);
         } catch (\Throwable $e) {
-            // Fetching failed — fall back to the remote Dicebear URL so the
-            // user still sees an avatar. Will retry on next page load.
+            // Fetching failed — fall back to remote URL so user still sees an avatar.
+            // Will retry on next page load.
             $attributes['avatarUrl'] = rtrim($this->settings->get('resofire-dicebear.api_url'), '/')
                 . '/9.x/'
                 . $this->settings->get('resofire-dicebear.avatar_style')

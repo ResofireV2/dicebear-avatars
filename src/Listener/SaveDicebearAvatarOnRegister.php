@@ -27,17 +27,14 @@ class SaveDicebearAvatarOnRegister
     {
         $user = $event->user;
 
-        // Only assign a Dicebear avatar if the user doesn't already have one
-        // (e.g. set by an SSO provider during registration).
+        // Only assign if no avatar already exists (e.g. from an SSO provider).
         if (!empty($user->getRawOriginal('avatar_url'))) {
             return;
         }
 
-        try {
-            $this->fetcher->fetchAndSave($user);
-        } catch (\Throwable $e) {
-            // Don't block registration if the Dicebear API is unreachable.
-            // The lazy fallback in AddDicebearAvatar will handle it later.
-        }
+        // fetchAndSave writes the file and does a direct DB update —
+        // no Flarum event system involved, so it can't conflict with
+        // the registration flow that just completed.
+        $this->fetcher->fetchAndSave($user);
     }
 }

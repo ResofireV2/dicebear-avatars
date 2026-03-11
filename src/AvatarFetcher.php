@@ -14,6 +14,8 @@ namespace Resofire\Dicebear;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\AvatarUploader;
 use Flarum\User\User;
+use Illuminate\Contracts\Filesystem\Factory;
+use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
 
 class AvatarFetcher
@@ -21,15 +23,18 @@ class AvatarFetcher
     protected SettingsRepositoryInterface $settings;
     protected AvatarUploader $uploader;
     protected ImageManager $imageManager;
+    protected $uploadDir;
 
     public function __construct(
         SettingsRepositoryInterface $settings,
         AvatarUploader $uploader,
-        ImageManager $imageManager
+        ImageManager $imageManager,
+        Factory $filesystemFactory
     ) {
         $this->settings = $settings;
         $this->uploader = $uploader;
         $this->imageManager = $imageManager;
+        $this->uploadDir = $filesystemFactory->disk('flarum-avatars');
     }
 
     /**
@@ -45,8 +50,8 @@ class AvatarFetcher
     }
 
     /**
-     * Fetch the Dicebear PNG, save it to assets/avatars via Flarum's
-     * AvatarUploader, and persist the user record.
+     * Fetch the Dicebear PNG, write it directly to assets/avatars,
+     * update the user's avatar_url column, and save.
      *
      * @throws \RuntimeException if the HTTP request fails or returns bad data.
      */
@@ -58,7 +63,6 @@ class AvatarFetcher
             'http' => [
                 'timeout' => 10,
                 'header'  => "User-Agent: resofire-dicebear/1.0\r\n",
-                'ignore_errors' => false,
             ],
         ]);
 
@@ -68,17 +72,24 @@ class AvatarFetcher
             throw new \RuntimeException("Failed to fetch Dicebear avatar from: $url");
         }
 
-        // Make sure we actually got image data, not an HTML error page.
+        // Validate it's a real image.
         $image = $this->imageManager->make($imageData);
 
         if ($image->width() === 0 || $image->height() === 0) {
             throw new \RuntimeException("Dicebear returned an invalid image for: $url");
         }
 
-        // AvatarUploader::upload() resizes to 100×100, saves to
-        // assets/avatars/<random>.png, and calls $user->changeAvatarPath().
-        $this->uploader->upload($user, $image);
+        // Resize and encode exactly as AvatarUploader does.
+        $encodedImage = $image->fit(100, 100)->encode('png');
 
-        $user->save();
+        // Generate a unique filename and write directly to the avatars disk.
+        $avatarPath = Str::random() . '.png';
+        $this->uploadDir->put($avatarPath, $encodedImage);
+
+        // Update the user record directly — no events, no middleware.
+        User::where('id', $user->id)->update(['avatar_url' => $avatarPath]);
+
+        // Keep the in-memory model consistent.
+        $user->avatar_url = $avatarPath;
     }
 }
