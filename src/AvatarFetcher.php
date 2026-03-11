@@ -48,14 +48,26 @@ class AvatarFetcher
         $url = $this->buildUrl($user);
         $write("Fetching URL: $url");
 
-        $imageData = file_get_contents($url);
+        // Use cURL — file_get_contents may be blocked by allow_url_fopen=Off
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_USERAGENT      => 'resofire-dicebear/1.0',
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $imageData = curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-        if ($imageData === false || strlen($imageData) < 100) {
+        $write("cURL HTTP $httpCode, error: " . ($curlError ?: 'none') . ", bytes: " . strlen($imageData ?: ''));
+
+        if ($imageData === false || strlen($imageData) < 100 || $httpCode !== 200) {
             $write("FAILED: could not fetch from $url");
-            throw new \RuntimeException("Could not fetch avatar from: $url");
+            throw new \RuntimeException("Could not fetch avatar (HTTP $httpCode, cURL: $curlError)");
         }
-
-        $write("Fetched " . strlen($imageData) . " bytes");
 
         $filename = Str::random(24) . '.svg';
         $avatarDir = $this->paths->public . '/assets/avatars';
@@ -66,14 +78,14 @@ class AvatarFetcher
 
         if (!is_dir($avatarDir)) {
             mkdir($avatarDir, 0755, true);
-            $write("Created dir: $avatarDir");
+            $write("Created dir");
         }
 
         $result = file_put_contents($avatarDir . '/' . $filename, $imageData);
         $write("file_put_contents result: " . var_export($result, true));
 
         User::where('id', $user->id)->update(['avatar_url' => $filename]);
-        $write("DB updated with avatar_url: $filename");
+        $write("DB updated: $filename");
 
         $user->avatar_url = $filename;
         $write("Done.");
