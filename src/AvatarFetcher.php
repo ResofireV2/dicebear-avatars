@@ -11,56 +11,57 @@
 
 namespace Resofire\Dicebear;
 
+use Flarum\Foundation\Paths;
 use Flarum\Settings\SettingsRepositoryInterface;
-use Flarum\User\AvatarUploader;
 use Flarum\User\User;
-use Intervention\Image\ImageManager;
+use Illuminate\Support\Str;
 
 class AvatarFetcher
 {
     protected SettingsRepositoryInterface $settings;
-    protected AvatarUploader $uploader;
-    protected ImageManager $imageManager;
+    protected Paths $paths;
 
-    public function __construct(
-        SettingsRepositoryInterface $settings,
-        AvatarUploader $uploader,
-        ImageManager $imageManager
-    ) {
+    public function __construct(SettingsRepositoryInterface $settings, Paths $paths)
+    {
         $this->settings = $settings;
-        $this->uploader = $uploader;
-        $this->imageManager = $imageManager;
+        $this->paths = $paths;
     }
 
-    /**
-     * Build the Dicebear URL for a given user.
-     */
     public function buildUrl(User $user): string
     {
         return rtrim($this->settings->get('resofire-dicebear.api_url'), '/')
             . '/9.x/'
             . $this->settings->get('resofire-dicebear.avatar_style')
-            . '/png?seed='
+            . '/svg?seed='
             . urlencode($user->username);
     }
 
-    /**
-     * Fetch the Dicebear PNG via Intervention Image (mirrors Flarum core's
-     * own uploadAvatarFromUrl), save to assets/avatars, and persist to DB.
-     */
     public function fetchAndSave(User $user): void
     {
         $url = $this->buildUrl($user);
 
-        // Intervention Image fetches the URL itself — exactly as Flarum core
-        // does in RegisterUserHandler::uploadAvatarFromUrl().
-        $image = $this->imageManager->make($url);
+        // Fetch the PNG from Dicebear — it's already being displayed
+        // from this URL, so we know it works.
+        $imageData = file_get_contents($url);
 
-        // upload() resizes to 100x100, writes the file to assets/avatars,
-        // and calls $user->changeAvatarPath() to set avatar_url in memory.
-        $this->uploader->upload($user, $image);
+        if ($imageData === false || strlen($imageData) < 100) {
+            throw new \RuntimeException("Could not fetch avatar from: $url");
+        }
 
-        // Persist the new avatar_url to the database.
-        $user->save();
+        // Write it directly into assets/avatars.
+        $filename = Str::random(24) . '.svg';
+        $avatarDir = $this->paths->public . '/assets/avatars';
+
+        if (!is_dir($avatarDir)) {
+            mkdir($avatarDir, 0755, true);
+        }
+
+        file_put_contents($avatarDir . '/' . $filename, $imageData);
+
+        // Update the database directly — no events, no Eloquent lifecycle.
+        User::where('id', $user->id)->update(['avatar_url' => $filename]);
+
+        // Keep the in-memory model in sync.
+        $user->avatar_url = $filename;
     }
 }

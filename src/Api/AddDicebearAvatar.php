@@ -12,38 +12,32 @@
 namespace Resofire\Dicebear\Api;
 
 use Flarum\Api\Serializer\BasicUserSerializer;
-use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\User;
 use Resofire\Dicebear\AvatarFetcher;
 
 class AddDicebearAvatar
 {
-    protected SettingsRepositoryInterface $settings;
     protected AvatarFetcher $fetcher;
 
-    public function __construct(SettingsRepositoryInterface $settings, AvatarFetcher $fetcher)
+    public function __construct(AvatarFetcher $fetcher)
     {
-        $this->settings = $settings;
         $this->fetcher = $fetcher;
     }
 
     public function __invoke(BasicUserSerializer $serializer, User $user, array $attributes): array
     {
-        // If the user already has a locally saved avatar, do nothing.
+        // Already has an avatar — nothing to do.
         if (!empty($attributes['avatarUrl'])) {
             return $attributes;
         }
 
-        // Try to download and save locally (lazy fallback for existing users).
         try {
             $this->fetcher->fetchAndSave($user);
-
-            // avatar_url is now a filename like "abc123.png".
-            // getAvatarUrlAttribute() converts it to a full public URL.
-            $attributes['avatarUrl'] = $user->avatar_url;
+            // avatarUrl will now be populated on the next serializer pass,
+            // but we return the remote URL this one time so the page doesn't break.
+            $attributes['avatarUrl'] = $this->fetcher->buildUrl($user);
         } catch (\Throwable $e) {
-            // Fetching failed — serve the remote URL temporarily.
-            // Will retry on next page load.
+            // Fall back to remote URL if fetch fails.
             $attributes['avatarUrl'] = $this->fetcher->buildUrl($user);
         }
 

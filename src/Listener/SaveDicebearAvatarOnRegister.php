@@ -27,7 +27,7 @@ class SaveDicebearAvatarOnRegister
     {
         $user = $event->user;
 
-        // Only assign if no avatar already exists (e.g. from an SSO provider).
+        // Skip if user already has an avatar (e.g. from SSO).
         if (!empty($user->getRawOriginal('avatar_url'))) {
             return;
         }
@@ -35,8 +35,7 @@ class SaveDicebearAvatarOnRegister
         try {
             $this->fetcher->fetchAndSave($user);
         } catch (\Throwable $e) {
-            // Don't block registration if Dicebear is unreachable.
-            // The lazy fallback in AddDicebearAvatar will handle it later.
+            // Don't block registration. Lazy fallback will handle it on first load.
         }
     }
 }
