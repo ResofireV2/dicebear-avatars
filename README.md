@@ -1,4 +1,4 @@
-# Resofire Dicebear Avatars
+# RF Dicebear
 
 A [Flarum](https://flarum.org) extension that automatically generates and locally saves [Dicebear](https://dicebear.com) avatars for users who have not uploaded a custom avatar.
 
@@ -19,7 +19,7 @@ php flarum migrate
 
 ## Configuration
 
-Navigate to **Admin → Extensions → Resofire Dicebear Avatars** to configure:
+Navigate to **Admin → Extensions → RF Dicebear** to configure:
 
 - **Avatar Style** — choose from all available Dicebear styles (Adventurer, Bottts, Pixel Art, and many more). Preview styles at [dicebear.com/styles](https://www.dicebear.com/styles/).
 - **API Base URL** — defaults to `https://api.dicebear.com`. Change this only if you are running a self-hosted Dicebear instance.
