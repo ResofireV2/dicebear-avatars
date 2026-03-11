@@ -1,6 +1,7 @@
 {
     "name": "resofire/dicebear",
     "description": "Automatically generate and locally cache Dicebear avatars for Flarum users.",
+    "type": "flarum-extension",
     "keywords": ["flarum", "dicebear", "avatar"],
     "homepage": "https://github.com/resofire/flarum-dicebear",
     "license": "MIT",
