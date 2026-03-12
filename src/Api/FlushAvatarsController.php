@@ -34,25 +34,42 @@ class FlushAvatarsController implements RequestHandlerInterface
 
         $avatarDir = $this->paths->public . '/assets/avatars';
 
-        // Step 1: Collect the filenames we are about to clear so we know
-        // exactly which files on disk belong to this extension.
-        $filesToDelete = User::whereNotNull('avatar_url')
-            ->where('avatar_url', 'not like', 'http%')
+        // Our extension prefixes all saved filenames with "dicebear_".
+        // This makes them unambiguously ours and safe to target.
+
+        // Step 1: Collect our filenames from the DB.
+        $ourFiles = User::whereNotNull('avatar_url')
+            ->where('avatar_url', 'like', 'dicebear_%')
             ->pluck('avatar_url')
             ->toArray();
 
-        // Step 2: Clear those avatar_url records in the database.
+        // Step 2: Clear those DB records.
         $affected = User::whereNotNull('avatar_url')
-            ->where('avatar_url', 'not like', 'http%')
+            ->where('avatar_url', 'like', 'dicebear_%')
             ->update(['avatar_url' => null]);
 
-        // Step 3: Delete only the files we collected — nothing else.
+        // Step 3: Delete the files from disk.
         $filesDeleted = 0;
-        foreach ($filesToDelete as $filename) {
+        foreach ($ourFiles as $filename) {
             $filepath = $avatarDir . '/' . basename($filename);
             if (is_file($filepath)) {
                 unlink($filepath);
                 $filesDeleted++;
+            }
+        }
+
+        // Step 4: Also clean up any orphaned dicebear_ files on disk
+        // that may no longer have a DB record (e.g. from earlier testing).
+        if (is_dir($avatarDir)) {
+            foreach (scandir($avatarDir) as $filename) {
+                if (strpos($filename, 'dicebear_') !== 0) {
+                    continue;
+                }
+                $filepath = $avatarDir . '/' . $filename;
+                if (is_file($filepath)) {
+                    unlink($filepath);
+                    $filesDeleted++;
+                }
             }
         }
 

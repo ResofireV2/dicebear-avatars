@@ -63,7 +63,7 @@ class AvatarFetcher
             mkdir($avatarDir, 0755, true);
         }
 
-        $filename = Str::random(24) . '.png';
+        $filename = 'dicebear_' . Str::random(24) . '.png';
         file_put_contents($avatarDir . '/' . $filename, $imageData);
 
         User::where('id', $user->id)->update(['avatar_url' => $filename]);
