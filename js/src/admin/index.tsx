@@ -42,7 +42,7 @@ app.initializers.add('resofire/dicebear', () => {
           const response = await fetch(`${app.forum.attribute('apiUrl')}/resofire-dicebear/flush`, {
             method: 'POST',
             headers: {
-              'Authorization': `Token ${app.session.token}`,
+              'X-CSRF-Token': app.session.csrfToken,
               'Content-Type': 'application/json',
             },
           });
